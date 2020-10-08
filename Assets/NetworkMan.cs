@@ -5,9 +5,13 @@ using System;
 using System.Text;
 using System.Net.Sockets;
 using System.Net;
+using UnityEditor;
 
 public class NetworkMan : MonoBehaviour
 {
+    [SerializeField]
+    float speed = 10;
+
     public UdpClient udp;
     // Start is called before the first frame update
     void Start()
@@ -15,7 +19,7 @@ public class NetworkMan : MonoBehaviour
         udp = new UdpClient();
        
         // Add real server IP
-        udp.Connect("3.97.25.11", 12345);
+        udp.Connect("localhost", 12345);
 
         Byte[] sendBytes = Encoding.ASCII.GetBytes("connect");
       
@@ -23,7 +27,8 @@ public class NetworkMan : MonoBehaviour
 
         udp.BeginReceive(new AsyncCallback(OnReceived), udp);
 
-        InvokeRepeating("HeartBeat", 1, 1);
+        InvokeRepeating("HeartBeat", 1, 1.0f/(30));
+
     }
 
     void OnDestroy(){
@@ -41,17 +46,25 @@ public class NetworkMan : MonoBehaviour
     public class Message{
         public commands cmd;
     }
-    
+
     [Serializable]
-    public class Player{
+    public class Player {
         [Serializable]
-        public struct receivedColor{
+        public struct receivedColor {
             public float R;
             public float G;
             public float B;
         }
+        [Serializable]
+        public struct receivecPosition{
+            public float x;
+            public float y;
+            public float z;
+        }
         public string id;
-        public receivedColor color;        
+        public receivedColor color;
+        public receivecPosition position;
+        public int identity = 0;
     }
 
     [Serializable]
@@ -84,6 +97,7 @@ public class NetworkMan : MonoBehaviour
 
     List<Player> connectedPlayers = new List<Player>();
     List<GameObjectPlayers> gameObjectPlayers = new List<GameObjectPlayers>();
+    Player currentPlayer = new Player();
 
     void OnReceived(IAsyncResult result){
         // this is what had been passed into BeginReceive as the second parameter:
@@ -123,6 +137,15 @@ public class NetworkMan : MonoBehaviour
                         if(hasNew == true)
                         {
                             connectedPlayers.Add(latestPlayer.player[i]);
+                        }
+
+                        if(currentPlayer.identity == 0)
+                        {
+                            if(latestPlayer.player[i].identity == 1)
+                            {
+                                currentPlayer.id = latestPlayer.player[i].id;
+                                currentPlayer.identity = 1;
+                            }
                         }
 
                     }
@@ -174,10 +197,29 @@ public class NetworkMan : MonoBehaviour
                 gameObjectPlayers[gameObjectPlayers.Count - 1].cube.transform.position = new Vector3(-2.5f + (gameObjectPlayers.Count - 1) * 2.5f, 2.5f, 0.5f);
             }
         }
+
+        foreach(GameObjectPlayers gO in gameObjectPlayers)
+        {
+            if(gO.player.id == currentPlayer.id)
+            {
+                currentPlayer.position.x = gO.cube.transform.position.x;
+                currentPlayer.position.y = gO.cube.transform.position.y;
+                currentPlayer.position.z = gO.cube.transform.position.z;
+            }
+        }
     }
 
     void UpdatePlayers(){
         // The client loops through all the currently connected players and updates the player game object properties
+        foreach (GameObjectPlayers gO in gameObjectPlayers)
+        {
+            if (gO.player.id == currentPlayer.id)
+            {
+                currentPlayer.position.x = gO.cube.transform.position.x;
+                currentPlayer.position.y = gO.cube.transform.position.y;
+                currentPlayer.position.z = gO.cube.transform.position.z;
+            }
+        }
         foreach (GameObjectPlayers gO in gameObjectPlayers)
         {
             foreach(Player p in lastestGameState.players)
@@ -186,6 +228,11 @@ public class NetworkMan : MonoBehaviour
                 {
                     gO.player.color = p.color;
                     gO.cube.GetComponent<Renderer>().material.color = new Color(p.color.R, p.color.G, p.color.B);
+                    if(gO.player.id != currentPlayer.id)
+                    {
+                        gO.cube.transform.position = new Vector3(p.position.x, p.position.y, p.position.z);
+                    }
+
                 }
             }
         }
@@ -211,11 +258,21 @@ public class NetworkMan : MonoBehaviour
     }
     
     void HeartBeat(){
-        Byte[] sendBytes = Encoding.ASCII.GetBytes("heartbeat");
+        // Periodically send the position of the cube owned by the player
+        Byte[] sendBytes = Encoding.ASCII.GetBytes("heartbeat " + currentPlayer.position.x + " " + currentPlayer.position.y + " " + currentPlayer.position.z);
         udp.Send(sendBytes, sendBytes.Length);
     }
 
     void Update(){
+        // Move the character object around
+        Vector3 velocity = new Vector3(Input.GetAxis("Horizontal"), Input.GetAxis("Vertical"), 0) * speed * Time.deltaTime;
+        foreach (GameObjectPlayers gO in gameObjectPlayers)
+        {
+            if (gO.player.id == currentPlayer.id)
+            {
+                gO.cube.transform.Translate(velocity);
+            }
+        }
         SpawnPlayers();
         UpdatePlayers();
         DestroyPlayers();
