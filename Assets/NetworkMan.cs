@@ -19,7 +19,7 @@ public class NetworkMan : MonoBehaviour
         udp = new UdpClient();
        
         // Add real server IP
-        udp.Connect("localhost", 12345);
+        udp.Connect("3.97.25.11", 12345);
 
         Byte[] sendBytes = Encoding.ASCII.GetBytes("connect");
       
@@ -194,7 +194,7 @@ public class NetworkMan : MonoBehaviour
             if (hasNew == true)
             {
                 gameObjectPlayers.Add(new GameObjectPlayers() { player = connectedPlayers[i], cube = GameObject.CreatePrimitive(PrimitiveType.Cube) });
-                gameObjectPlayers[gameObjectPlayers.Count - 1].cube.transform.position = new Vector3(-2.5f + (gameObjectPlayers.Count - 1) * 2.5f, 2.5f, 0.5f);
+                gameObjectPlayers[gameObjectPlayers.Count - 1].cube.transform.position = new Vector3(-2.5f + (gameObjectPlayers.Count - 1) * 2.5f, 2.5f, 0.5f + (gameObjectPlayers.Count - 1) * 2.5f);
             }
         }
 
